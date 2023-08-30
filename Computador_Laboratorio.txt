@@ -1,0 +1,5 @@
+Algoritmo para usar o python no laboratório (um péssimo dia para ser pobre)
+1. Instalar python da mycrosoft store
+2. Instalar pip com get-pip.py
+3. pip install pyopengl 
+4. pip install glfw
