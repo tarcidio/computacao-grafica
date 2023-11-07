@@ -1,4 +1,4 @@
-*Introdução:*
+**Introdução:**
 
 A computação gráfica é uma disciplina da ciência da computação que lida com a geração, manipulação e representação de imagens e objetos visuais por meio de software e hardware. Ela desempenha um papel crucial em várias áreas, incluindo entretenimento, design, engenharia, medicina, educação e muitos outros campos. Neste trabalho, aborda-se algumas de suas bases.
 
