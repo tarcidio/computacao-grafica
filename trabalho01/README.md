@@ -15,8 +15,7 @@ Neste trabalho, busca-se sedimentar os seguintes conhecimentos: pipeline gráfic
 * Textura: a tecla 'p' ativa e desativa a textura
 * Magnificação: a tecla 'v' altera entre as técnicas de magnificação linear e nearest
 
-
-**Compilação:**
+**Execução:**
 
 Para este trabalho, é necessário que tenha instalado as seguintes bibliotecas: 
 * glfw
@@ -33,7 +32,11 @@ pip install numpy
 pip install pillow
 ```
 
-Para rodar o programa com o código principal no arquivo `.ipynb` (mais recomendado), basta executar a única célula disponível. Para executar na janela de comando do windows ou linux, basta executar `python3 main.py`.
+Para rodar o programa com o código principal no arquivo `.ipynb` (mais recomendado), basta executar a única célula disponível. Para executar na janela de comando do windows ou linux, basta executar 
+
+```python
+python3 main.py
+```
 
 **Ferramentas:**
 
