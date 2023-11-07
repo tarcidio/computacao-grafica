@@ -32,7 +32,7 @@ pip install numpy
 pip install pillow
 ```
 
-Para rodar o programa com o código principal no arquivo `.ipynb` (mais recomendado), basta executar a única célula disponível. Para executar na janela de comando do windows ou linux, basta executar 
+Para rodar o programa com o código principal no arquivo `.ipynb` (mais recomendado), basta executar a única célula disponível no arquivo `Trabalho01_SmallCode.ipynb`. `Trabalho01_BigCode.ipynb` é apenas uma versão não modularizada de `Trabalho01_SmallCode.ipynb`. Para executar na janela de comando do Windows ou Linux, basta executar 
 
 ```python
 python3 main.py
