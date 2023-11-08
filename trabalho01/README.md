@@ -40,7 +40,7 @@ python3 main.py
 
 **Vídeo descritivo:**
 
-[Explicação do trabalho de CG.]((https://www.youtube.com/watch?v=esiEs0zNfrs))
+[Explicação do trabalho de CG.](https://www.youtube.com/watch?v=esiEs0zNfrs)
 
 **Ferramentas:**
 
