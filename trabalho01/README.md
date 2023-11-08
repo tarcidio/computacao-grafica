@@ -38,6 +38,10 @@ Para rodar o programa com o código principal no arquivo `.ipynb` (mais recomend
 python3 main.py
 ```
 
+**Vídeo descritivo:**
+
+[Explicação do trabalho de CG.]((https://www.youtube.com/watch?v=esiEs0zNfrs))
+
 **Ferramentas:**
 
 Para criação deste projeto foi utilizado as seguintes ferramentas:
