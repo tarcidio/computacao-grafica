@@ -17,6 +17,10 @@ class obj_wave(graphic_element):
                     linear_speed = 0.05, angular_speed = 0.139, scale_speed = 0.2,
                     limit_sup = 1,
                     limit_inf = -1,
+                    ka_speed = 0.1, ka = 1, kd = 1, ks = 1, ns = 0.10,
+                    light_source = False,
+                    geometric = False,
+                    R = 1.0, G = 1.0, B = 1.0,
                     mag = GL_LINEAR,
                 ):
         # Inicializa atributos da mãe
@@ -27,7 +31,11 @@ class obj_wave(graphic_element):
                             scale = scale,
                             linear_speed = linear_speed, angular_speed = angular_speed, scale_speed = scale_speed,
                             limit_sup = limit_sup,
-                            limit_inf = limit_inf
+                            limit_inf = limit_inf,
+                            ka_speed = ka_speed, ka = ka, kd = kd, ks = ks, ns = ns,
+                            light_source = light_source,
+                            geometric = geometric,
+                            R = R, G = G, B = B
                         )
         # Atributos de identificação
         self._id_texture = id_texture   # id que identifica qual textura se está trabalhando
@@ -125,9 +133,12 @@ class obj_wave(graphic_element):
     # Entrada: nome do arquivo
     # Saida: estrutura que armazena o elemento (vertices, textura e faces)
     def _load_model_from_file(self):
-        vertices = []
-        texture_coords = []
-        faces = []
+        # Arrays que armazenaram informações de coordenadas ou vetores
+        vertices = []       # Posições dos vértices
+        texture_coords = [] # Coordenada dos vértices de textura
+        normals = []        # Coordenada que define os vetores normais
+        relations = []      # Modelo que conecta, a partir da funções dadas no .obj, 
+                        # vértices do objeto, vértices dde textura e os vetores normais
         # Soma das coordenadas para média com intenção de centralizar posição
         sum_coord = [0, 0, 0]
         num_vertices = 0
@@ -136,6 +147,7 @@ class obj_wave(graphic_element):
         # Maior valor de cada eixo
         max_coord = [-0x3f3f3f3f,-0x3f3f3f3f,-0x3f3f3f3f]
 
+        # Não é utilizado, mas refere-se ao material do .obj
         material = None
 
         # Abre o arquivo obj (wavefront) para leitura
@@ -161,6 +173,9 @@ class obj_wave(graphic_element):
                     sum_coord[i - 1] += float(values[i])
                 # Somando coordenadas para fazer média
                 num_vertices = num_vertices + 1
+            ### Armazena vetor normais no vetor normals
+            elif values[0] == 'vn':
+                normals.append(values[1:4])
             ### Armazena coordenadas das texturas no vetor texture_coords
             elif values[0] == 'vt':
                 texture_coords.append(values[1:3])
@@ -169,29 +184,38 @@ class obj_wave(graphic_element):
                 material = values[1]
             ### Armazena informações sobre a construção das faces
             elif values[0] == 'f':
-                face = []
-                face_texture = []
-                # Para cada elemento da linha que define a função
+                 # Declara vetores intermediários
+                relation_vert = []
+                relation_texture = []
+                relation_normal = []
+                # Para cada uma das triplas da linha que define a função
                 for bloco in values[1:]:
                     # Separa o elemento em vetor de elementos separando os números que são separados por /
                     positions = bloco.split('/')
-                    # Adiciona o primeiro número na face (que representa o número da linha que encontra-se um vértice para da figura)
-                    face.append(int(positions[0]))
+                    # Adiciona o primeiro número no vetor relation_vert (que representa o número da linha que encontra-se um vértice)
+                    relation_vert.append(int(positions[0]))
+                    try:
+                        # Adiciona o terceiro número no vetor relation_normal (que representa o número da linha que encontra-se a normal para aquele vértice)
+                        relation_normal.append(int(positions[2]))
+                    except:
+                        print(f"Modelo {self._path_obj} não possui normais")
                     # Se o vetor com elementos separados por / for maior ou igual que dois
                     # Se o segundo número do elemento for maior do que zero
                     if len(positions) >= 2 and len(positions[1]) > 0:
-                        # Adicione o segundo número na face de textura (que representa o número da linha que encontra-se um vértice de textura da figura)
-                        face_texture.append(int(positions[1]))
+                        # Adicione o segundo número no vetor relation_texture (que representa o número da linha que encontra-se um vértice de textura da figura)
+                        relation_texture.append(int(positions[1]))
                     else:
                         # Se não for maior ou igual a dois ou não for maior que zero, coloque zero na textura
-                        face_texture.append(0)
-                # Após conseguir, provavelmente, os três valores para face, os três valores para textura e o tipo de material, insira na faces
-                faces.append((face, face_texture, material))
+                        relation_texture.append(0)
+                # Após conseguir, provavelmente, os três valores para vértice, os três valores para textura, os três valores para normal e o tipo de material, insira no vetor relations
+                relations.append((relation_vert, relation_texture, relation_normal, material))
 
+        # Armazena cada uma das partes do modelo
         model = {}
         model['vertices'] = vertices
         model['texture'] = texture_coords
-        model['faces'] = faces
+        model['relations'] = relations
+        model['normals'] = normals
 
         return model, min_coord, max_coord, sum_coord/np.full(3,num_vertices)
     
@@ -216,21 +240,25 @@ class obj_wave(graphic_element):
         #Carregando os dados da imagem
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, img_width, img_height, 0, GL_RGB, GL_UNSIGNED_BYTE, image_data)
 
-    # Função: retorna uma lista com coordenadas dos vertices do objeto e outra com as da textura
+    # Função: retorna uma lista para coordenadas dos vertices do objeto, outra para as da textura e outra para as das normais
     # Obs: como as listas de vértices só tem funcionalidade no momento em que são enviados para a GPU,
-        # não há necessidade de manter dentro da classe
-    def get_vertices_textures(self):
+    # não há necessidade de manter dentro da classe
+    def get_vertices_textures_normals(self):
         vertices_list = []    
         textures_coord_list = []
-        # Para cada um das faces (num_line(v), num_line(vt), material)
-        for face in self._model['faces']:
+        normals_list = []
+        # Para cada um das relations (num_line(v), num_line(vt), num_line(vn) material)
+        for relation in self._model['relations']:
             # Para cada um dos números que representa a linha do vértice
-            for vertice_id in face[0]: # Pega o valor a coordenada do vértice
+            for vertice_id in relation[0]: # Pega o valor a coordenada do vértice
                 vertices_list.append( self._model['vertices'][vertice_id-1] )
             # Para cada um dos números que representa a linha da coordenada da textura
-            for texture_id in face[1]:  # Pega o valor a coordenada da textura
+            for texture_id in relation[1]:  # Pega o valor a coordenada da textura
                 textures_coord_list.append( self._model['texture'][texture_id-1] )
-        return vertices_list, textures_coord_list
+            # Para cada um dos números que representa a linha da coordenada da normal
+            for normal_id in relation[2]:
+                normals_list.append( self._model['normals'][normal_id-1] )
+        return vertices_list, textures_coord_list, normals_list
     
     # Retorna matriz de translação inicial para garantir que o objeto inicialize em (0,0,0)
     def _mat_pre_translation(self):
@@ -240,17 +268,30 @@ class obj_wave(graphic_element):
                             0.0, 0.0, 0.0,                     1.0], np.float32)
     
     # Overriding: altera a maneira de desenhar levando em conta a textura e a translação inicial
-    def draw(self, locs, gl_Draw = GL_TRUE):
+    def draw(self, program, gl_Draw = GL_TRUE):
         if self._on:
-            # Separando localizacões de matrizes
-            loc_mat_pre_transl = locs[0]
-            loc_mat_rot_x = locs[1]
-            loc_mat_rot_y = locs[2]
-            loc_mat_rot_z = locs[3]
-            loc_mat_scale = locs[4]
-            loc_mat_transl = locs[5]
-            # Define se será utilizado texturas ou não
-            glPolygonMode(GL_FRONT_AND_BACK, self._polygonal_mode)
+            # Capturando qualificadores de matrizes de transformação
+            loc_mat_rot_x = glGetUniformLocation(program, "mat_rot_x")
+            loc_mat_rot_y = glGetUniformLocation(program, "mat_rot_y")
+            loc_mat_rot_z = glGetUniformLocation(program, "mat_rot_z")
+            loc_mat_scale = glGetUniformLocation(program, "mat_scale")
+            loc_mat_transl = glGetUniformLocation(program, "mat_transl")
+            loc_mat_pre_transl = glGetUniformLocation(program, "mat_pre_transl")
+
+            # Capturado qualificadores de iluminação
+            loc_ka = glGetUniformLocation(program, "ka")
+            loc_kd = glGetUniformLocation(program, "kd") 
+            loc_ks = glGetUniformLocation(program, "ks")
+            loc_ns = glGetUniformLocation(program, "ns")
+            loc_light_pos = glGetUniformLocation(program, "lightPos")
+
+            # Capturando qualificador de geometria e enviando informação
+            loc_geometric = glGetUniformLocation(program, "geometric")
+            glUniform1f(loc_geometric, self._geometric)
+
+            # Define se será utilizado texturas ou não (desativado)
+            # glPolygonMode(GL_FRONT_AND_BACK, self._polygonal_mode)
+
             # Exporta matrizes
             glUniformMatrix4fv(loc_mat_pre_transl, 1, gl_Draw, self._mat_pre_translation())
             glUniformMatrix4fv(loc_mat_rot_x, 1, gl_Draw, self._rotation_x()) 
@@ -258,47 +299,15 @@ class obj_wave(graphic_element):
             glUniformMatrix4fv(loc_mat_rot_z, 1, gl_Draw, self._rotation_z()) 
             glUniformMatrix4fv(loc_mat_scale, 1, gl_Draw, self._mat_scale()) 
             glUniformMatrix4fv(loc_mat_transl, 1, gl_Draw, self._mat_translation())
+             # Envia parâmetros de iluminação
+            glUniform1f(loc_ka, self._ka) 
+            glUniform1f(loc_kd, self._kd)   
+            glUniform1f(loc_ks, self._ks)
+            glUniform1f(loc_ns, self._ns)
+            # Envia localizacao da luz de iluminação
+            if self._light_source:
+                glUniform3f(loc_light_pos, self._pos[0], self._pos[1], self._pos[2])
             # Ativa textura com id
             glBindTexture(GL_TEXTURE_2D, self._id_texture)
             # Desenha o elemento
             glDrawArrays(GL_TRIANGLES, self._inicial_vert, self._num_vert)
-
-# Reconstroe coordenadas de vertices e textura com base nos modelos obj_wave criados
-def define_coord_vertices_texture(objs_wave):
-    # Quantidade total de vértices de objeto a serem utilizados neste programa
-    total_len_vert_obj = 0
-    # Quantidade total de vértices de textura a serem utilizados neste programa
-    total_len_vert_text = 0
-    # Vértices de objeto a serem utilizados neste programa
-    vertices_obj_total = []
-    # Vértices de textura a serem utilizados neste programa
-    vertices_text_total = []
-    # Controla os valores que definem a identificação de cada objeto
-    identification = []
-
-    # Para cada objeto:
-    for obj in objs_wave:
-        # Captura os vertices do objeto e de textura
-        vertices_list, textures_coord_list = obj.get_vertices_textures()
-        # Declara a identificação
-        identification.append((total_len_vert_obj, len(vertices_list)))
-        # Adiciona o tamanho total dos vertices de objeto e de textura
-        total_len_vert_obj += len(vertices_list)
-        total_len_vert_text += len(textures_coord_list)
-        # Adiciona os vértices de objeto e de textura
-        vertices_obj_total += vertices_list
-        vertices_text_total += textures_coord_list
-
-    #Finaliza a modelagem dos dados de vértices
-    vertices = np.zeros(total_len_vert_obj, [("position", np.float32, 3)])
-    vertices['position'] = vertices_obj_total
-
-    #Finaliza a modelagem dos dados de texturas
-    textures = np.zeros(total_len_vert_text, [("position", np.float32, 2)])
-    textures['position'] = vertices_text_total
-
-    #Setando as identificações de desenho do objeto
-    for i, obj in enumerate(objs_wave):
-        obj.set_identification(identification[i][0], identification[i][1])
-
-    return vertices, textures

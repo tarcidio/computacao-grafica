@@ -11,8 +11,12 @@ class graphic_element:
                     angle_x = 0, angle_y = 0, angle_z = 0,
                     scale = 1,
                     linear_speed = 0.05, angular_speed = 0.139, scale_speed = 0.2,
-                    limit_sup = 1,
-                    limit_inf = -1):
+                    limit_sup = 100000, limit_inf = -1000000,
+                    ka_speed = 0.1, ka = 1, kd = 1, ks = 1, ns = 0.10,
+                    light_source = False,
+                    geometric = True,
+                    R = 1.0, G = 1.0, B = 1.0
+                    ):
         # Atributos de identificação
         # Inicialmente estes atributos são inicializados com valores falsos, mas são alterados em seguida
         self._inicial_vert = inicial_vert   # Vértice inicial da onde deve partir a diretiva geométrica
@@ -36,9 +40,32 @@ class graphic_element:
         self._scale = scale
         self._scale_speed = scale_speed
         # Indica quando o objeto está ativado ou não para ser desenhado
-        self._on = False
+        self._on = True
         # Indica ativação ou não da textura do objeto
         self._polygonal_mode = GL_FILL
+        # Parâmetros de iluminação
+        self._ka_speed = ka_speed
+        self._ka = ka
+        self._kd = kd
+        self._ks = ks
+        self._ns = ns
+        # Se esse objeto é fonte de luz
+        self._light_source = light_source
+        # Se esse objeto é geometricou ou não 
+        self._geometric = geometric
+        # Cor do objeto geométrico
+        self._R = R
+        self._G = G
+        self._B = B
+
+    # Altera o coeficiente de iluminação ambiente
+    def ka_change(self, operation):
+        if operation == '+':
+            new_ka = self._ka + self._ka_speed
+            self._ka = new_ka if new_ka <= 1.0 else self._ka
+        elif operation == '-':
+            new_ka = self._ka - self._ka_speed
+            self._ka = new_ka if new_ka >= 0.0 else self._ka
 
     # Ativa e desativa a textura do objeto
     def turn_texture(self):
@@ -159,19 +186,37 @@ class graphic_element:
                                       0.0,  1.0,          0.0, 0.0, 
                             -self._sin[1],  0.0, self._cos[1], 0.0, 
                                       0.0,  0.0,          0.0, 1.0], np.float32)
+    
     # Desenha o objeto na tela
     # Entrada: localizações dos qualificadores uniformes no shader relativos as matrizes de transformação geométrica
-    def draw(self, locs, gl_Draw = GL_TRUE):
+    def draw(self, program, gl_Draw = GL_TRUE):
         if self._on:
-            # Separando localizacões de matrizes
-            loc_mat_pre_transl = locs[0]
-            loc_mat_rot_x = locs[1]
-            loc_mat_rot_y = locs[2]
-            loc_mat_rot_z = locs[3]
-            loc_mat_scale = locs[4]
-            loc_mat_transl = locs[5]
-            # Define se será mostrado a textura ou não
-            glPolygonMode(GL_FRONT_AND_BACK, self._polygonal_mode)
+            # Capturando qualificadores de matrizes de transformação
+            loc_mat_rot_x = glGetUniformLocation(program, "mat_rot_x")
+            loc_mat_rot_y = glGetUniformLocation(program, "mat_rot_y")
+            loc_mat_rot_z = glGetUniformLocation(program, "mat_rot_z")
+            loc_mat_scale = glGetUniformLocation(program, "mat_scale")
+            loc_mat_transl = glGetUniformLocation(program, "mat_transl")
+            loc_mat_pre_transl = glGetUniformLocation(program, "mat_pre_transl")
+
+            # Capturado qualificadores de iluminação
+            loc_ka = glGetUniformLocation(program, "ka")
+            loc_kd = glGetUniformLocation(program, "kd") 
+            loc_ks = glGetUniformLocation(program, "ks")
+            loc_ns = glGetUniformLocation(program, "ns")
+            loc_light_pos = glGetUniformLocation(program, "lightPos")
+
+            # Capturando qualificador de geometria e enviando informação
+            loc_geometric = glGetUniformLocation(program, "geometric")
+            glUniform1f(loc_geometric, self._geometric)
+
+            # Capturando qualificador de cor e enviando informação
+            loc_color = glGetUniformLocation(program, "color")
+            glUniform4f(loc_color, self._R, self._G, self._B, 1.0)
+
+            # Define se será mostrado a textura ou não (desativado)
+            # glPolygonMode(GL_FRONT_AND_BACK, self._polygonal_mode)
+
             # Envia as matrizes de transformação
             glUniformMatrix4fv(loc_mat_pre_transl, 1, gl_Draw, np.identity(4)) 
             glUniformMatrix4fv(loc_mat_rot_x, 1, gl_Draw, self._rotation_x()) 
@@ -179,5 +224,13 @@ class graphic_element:
             glUniformMatrix4fv(loc_mat_rot_z, 1, gl_Draw, self._rotation_z()) 
             glUniformMatrix4fv(loc_mat_scale, 1, gl_Draw, self._mat_scale()) 
             glUniformMatrix4fv(loc_mat_transl, 1, gl_Draw, self._mat_translation()) 
+            # Envia parâmetros de iluminação
+            glUniform1f(loc_ka, self._ka) 
+            glUniform1f(loc_kd, self._kd)   
+            glUniform1f(loc_ks, self._ks)
+            glUniform1f(loc_ns, self._ns)
+            # Envia localizacao da luz de iluminação
+            if self._light_source:
+                glUniform3f(loc_light_pos, self._pos[0], self._pos[1], self._pos[2])
             # Desenha o objeto com primitiva GL_TRIANGLES
             glDrawArrays(GL_TRIANGLES, self._inicial_vert, self._num_vert)

@@ -1,4 +1,6 @@
 import glfw
+import math
+import glm
 
 # get_dim_pos: retorna tamanho da tela e posição da tela
 # Entrada: porcentagem largura e altura da tela que deve ser ocupada
@@ -30,66 +32,123 @@ def init_window(title, per_width = 0.6, per_height = 0.6):
     # Posicionando janela
     glfw.set_window_pos(window, POSX_WINDOW, POSY_WINDOW)
     glfw.make_context_current(window)
-    return window
+    return window, WIDTH_WINDOW, HEIGHT_WINDOW
 
 # Define sistema de resposta a eventos de teclado e mouse
-def setup_keyboard_event_handlers(window, initial_obj_wave, objs_wave):
-    # Obs: objs_wave vai mudar porque lista é um tipo mutável no python que é passado sempre como referencia
-    # Define um objeto principal para uso na capturação de eventos
-    main_obj = initial_obj_wave
-    # Controladores de teclas para evitar erro
-    press_keys = [True, True]
+def setup_keyboard_event_handlers(window, color_amb, polygonal, cam, sun, objs_wave, objs_geometric, sky_radius, WIDTH_WINDOW, HEIGHT_WINDOW):
+    # Variável que controla malha
+    press_keys_polygonal = True
 
-    def keyboard_event(window, key, scancode, action, mods):
-        nonlocal main_obj, press_keys
+    def key_event(window,key,scancode,action,mods):
+        nonlocal cam
+        nonlocal color_amb
+        nonlocal sun
+        nonlocal sky_radius
+        nonlocal polygonal, press_keys_polygonal
+        nonlocal objs_wave, objs_geometric
 
-        # Ativando objetos
-        # Determinando id_obj
-        id_obj = key
-
-        # Ativa o objeto chamado
-        if id_obj >= 48 and id_obj <= 57:
-            id_obj = id_obj - 48
-            # Ativa e desativa objeto
+        # Altera coeficiente de iluminação ambiente
+        if key == 79 or key == 73: # Tecla O ou Tecla I
+            operation = '+' if key == 79 else '-'
             for obj in objs_wave:
-                obj.set_on(id_obj)
-                if obj.get_on():
-                    main_obj = obj # Apenas por otimização, captura o objeto ativo
+                obj.ka_change(operation)
+            for obj in objs_geometric:
+                obj.ka_change(operation)
+
+        # Alterando intensidade da luz ambiente
+        speed_amb = 0.01
+        # Aumentando
+        if key == 82 and color_amb[0] < 1.0: color_amb[0] += speed_amb    # Tecla R
+        if key == 84 and color_amb[1] < 1.0: color_amb[1] += speed_amb    # Tecla T
+        if key == 89 and color_amb[2] < 1.0: color_amb[2] += speed_amb    # Tecla Y
+        # Diminuindo
+        if key == 70 and color_amb[0] > 0.0: color_amb[0] -= speed_amb    # Tecla F
+        if key == 71 and color_amb[1] > 0.0: color_amb[1] -= speed_amb    # Tecla G
+        if key == 72 and color_amb[2] > 0.0: color_amb[2] -= speed_amb    # Tecla H
         
-        # Ações do objeto
-        if key == 262: main_obj.rotate('-', 'y')    #Tecla LEFT: rotacionar para esquerda
-        if key == 263: main_obj.rotate('+','y')     #Tecla RIGHT: rotacionar para direita
+        # Movimentando o sol
+        if key == 262: sun.move('+','x')     #Tecla LEFT: move para esuqerda
+        if key == 263: sun.move('-','x')     #Tecla RIGHT: move para direita
         
-        if key == 264: main_obj.rotate('-','x')     #Tecla DOWN: rotacionar para baixo
-        if key == 265: main_obj.rotate('+','x')     #Tecla UP: rotacionar para cima
+        if key == 264: sun.move('-','y')     #Tecla DOWN: desce
+        if key == 265: sun.move('+','y')     #Tecla UP: sobe
 
-        if key == 333: main_obj.rotate('-','z')     #Tecla -: rotacionar no sentido antihorario
-        if key == 334: main_obj.rotate('+','z')     #Tecla +: rotacionar no sentido horario
+        # Ativa e desativa malhas
+        if key == 80 and action == 1:        #Tecla P: altera visualização de textura
+            polygonal[0] = 1 - polygonal[0]                 
 
-        if key == 88: main_obj.distort('-')         #Tecla X: diminuir escala
-        if key == 90: main_obj.distort('+')         #Tecla Z: aumentar escala
+        # Componentes da câmera
+        # Velocidade da camera
+        cameraSpeed = 0.1 # 0.01
+        old_cameraPos = glm.vec3(cam[0])  # Cria uma cópia independente
+        new_cameraPos = glm.vec3(cam[0])  # Cria uma cópia independente
 
-        if key == 87: main_obj.move('+','y')        #Tecla W: mover para cima
-        if key == 83: main_obj.move('-','y')        #Tecla S: mover para baixo
-        if key == 65: main_obj.move('-','x')        #Tecla A: mover para esquerda
-        if key == 68: main_obj.move('+','x')        #Tecla D: mover para direita
+        # Ir para frente
+        if key == 87 and (action==1 or action==2): # Tecla W
+            new_cameraPos += cameraSpeed * cam[1]
+        # Ir para trás
+        if key == 83 and (action==1 or action==2): # Tecla S
+            new_cameraPos -= cameraSpeed * cam[1]
+        # Ir para esquerda
+        if key == 65 and (action==1 or action==2): # Tecla A
+            new_cameraPos -= glm.normalize(glm.cross(cam[1], cam[2])) * cameraSpeed
+        # Ir para direita    
+        if key == 68 and (action==1 or action==2): # Tecla D
+            new_cameraPos += glm.normalize(glm.cross(cam[1], cam[2])) * cameraSpeed
+        
+        # Chega se a nova posicao continua valido
+        security_border_sphere = 2 
+        in_sphere = new_cameraPos[0]**2 + new_cameraPos[1]**2 + new_cameraPos[2]**2 < sky_radius**2 - security_border_sphere
+        on_top_plan = new_cameraPos[1] > 0
+        cam[0] = new_cameraPos if in_sphere and on_top_plan else old_cameraPos
 
-        if key == 80:                               #Tecla P: altera visualização de textura
-            if press_keys[0]:
-                main_obj.turn_texture()
-                press_keys[0] = False
-            else:
-                press_keys[0] = True
+    # Variáveis auxiliar para captura de cursor
+    # Flag para definir se eh a primeira vez que o mouse aparece na tela
+    firstMouse = True
+    # yaw: rotação no eixo y
+    yaw = -90.0 
+    # pitch: rotação no eixo x
+    pitch = 0.0
+    # Valores iniciais da última posição do mouse
+    lastX =  WIDTH_WINDOW/2
+    lastY =  HEIGHT_WINDOW/2
 
-        if key == 86:                               #Tecla V: altera modo de magnificação
-            if press_keys[1]:
-                main_obj.turn_mag()
-                press_keys[1] = False
-            else:
-                press_keys[1] = True
+    def mouse_event(window, xpos, ypos):
+        nonlocal firstMouse, cam, yaw, pitch, lastX, lastY
+        # Tratando caso de primeira aparição do mouse
+        if firstMouse:
+            lastX = xpos
+            lastY = ypos
+            firstMouse = False
 
-    # Seta função de ação de eventos de teclado
-    glfw.set_key_callback(window, keyboard_event)
+        # Calculos da variação
+        xoffset = xpos - lastX
+        yoffset = lastY - ypos
+        # Atualizando valor da última posição
+        lastX = xpos
+        lastY = ypos
+        # Calculando yam e pitch aproximadamente
+        sensitivity = 0.3 
+        xoffset *= sensitivity
+        yoffset *= sensitivity
+        yaw += xoffset
+        pitch += yoffset
+
+        # Evitando que rotação extremas
+        if pitch >= 90.0: pitch = 90.0
+        if pitch <= -90.0: pitch = -90.0
+
+        # Fórmulas matemáticas para calcular o novo cameraFront
+        front = glm.vec3()
+        front.x = math.cos(glm.radians(yaw)) * math.cos(glm.radians(pitch))
+        front.y = math.sin(glm.radians(pitch))
+        front.z = math.sin(glm.radians(yaw)) * math.cos(glm.radians(pitch))
+        cam[1] = glm.normalize(front)
+
+    # Define função de evento para teclado
+    glfw.set_key_callback(window,key_event)
+    # Define função de evento para cursor
+    glfw.set_cursor_pos_callback(window, mouse_event)
 
 # Exibe a janela
 def show_window(window):
@@ -110,3 +169,5 @@ def init_main_loop_glfw(window):
     glfw.swap_buffers(window)
     # Lê eventos
     glfw.poll_events()
+
+
