@@ -198,7 +198,7 @@ class obj_wave(graphic_element):
                         # Adiciona o terceiro número no vetor relation_normal (que representa o número da linha que encontra-se a normal para aquele vértice)
                         relation_normal.append(int(positions[2]))
                     except:
-                        print(f"Modelo {self._path_obj} não possui normais")
+                        print(f"Modelo {self._path_obj} não possui normal para esta coordenada")
                     # Se o vetor com elementos separados por / for maior ou igual que dois
                     # Se o segundo número do elemento for maior do que zero
                     if len(positions) >= 2 and len(positions[1]) > 0:
